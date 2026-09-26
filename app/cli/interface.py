@@ -1,7 +1,7 @@
 """
 CLI Interface module for IMM.
 Provides comprehensive terminal commands for discovering reels, managing approval queues,
-submitting comments, managing blacklists/whitelists, running daemon, and viewing analytics.
+submitting comments, managing blacklists/whitelists, running daemon, viewing analytics, and running diagnostics.
 """
 
 import click
@@ -14,6 +14,7 @@ from app.services.list_service import ListService
 from app.services.approval import ApprovalService
 from app.services.scheduler import DaemonScheduler
 from app.services.analytics import AnalyticsService
+from app.services.health_check import HealthCheckService
 from app.utils.logger import logger
 
 console = Console()
@@ -239,6 +240,32 @@ def report(export: str):
             console.print("[bold red]✗ Failed to export report.[/bold red]")
 
 
+@cli.command()
+def health():
+    """Runs automated health check diagnostics on network, database, and storage."""
+    console.print("[bold yellow]Running system health check diagnostics...[/bold yellow]")
+    svc = HealthCheckService()
+    results = svc.run_all_checks()
+
+    table = Table(title="IMM Health Check Diagnostics")
+    table.add_column("Component", style="cyan", no_wrap=True)
+    table.add_column("Status", style="bold")
+    table.add_column("Message", style="white")
+
+    for res in results:
+        status_str = res["status"]
+        if status_str == "ok":
+            status_fmt = "[green]✓ OK[/green]"
+        elif status_str == "warning":
+            status_fmt = "[yellow]! WARNING[/yellow]"
+        else:
+            status_fmt = "[red]✗ ERROR[/red]"
+
+        table.add_row(res["component"], status_fmt, res["message"])
+
+    console.print(table)
+
+
 if __name__ == "__main__":
     cli()
-    
+              
