@@ -1,10 +1,10 @@
 """
-Main entry point for Instagram Modular Manager.
+Main entry point for Instagram Modular Manager (IMM).
+Executes the CLI interface.
 """
 
-def main():
-    print("Instagram Modular Manager initialized successfully.")
+from app.cli import cli
 
 if __name__ == "__main__":
-    main()
-  
+    cli()
+    
