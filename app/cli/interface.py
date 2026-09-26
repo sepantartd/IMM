@@ -1,7 +1,7 @@
 """
 CLI Interface module for IMM.
 Provides comprehensive terminal commands for discovering reels, managing approval queues,
-submitting comments, and managing blacklists/whitelists.
+submitting comments, managing blacklists/whitelists, and running the background daemon.
 """
 
 import click
@@ -12,6 +12,7 @@ from app.database import init_db, get_db_connection
 from app.services.pipeline import AutomationPipeline
 from app.services.list_service import ListService
 from app.services.approval import ApprovalService
+from app.services.scheduler import DaemonScheduler
 from app.utils.logger import logger
 
 console = Console()
@@ -187,6 +188,26 @@ def lists(add: str, list_type: str, reason: str, show: str):
         console.print("[bold yellow]Use --add <value> --type <type> or --show <type>[/bold yellow]")
 
 
+@cli.command()
+@click.option("--target", "-t", required=True, help="Target username or keyword")
+@click.option("--interval", "-i", default=30, type=int, help="Interval between runs in minutes")
+@click.option("--mode", "-m", type=click.Choice(["username", "keyword"]), default="username", help="Discovery mode")
+@click.option("--limit", "-l", default=5, type=int, help="Batch limit per run")
+@click.option("--auto-submit", is_flag=True, help="Automatically submit approved comments each cycle")
+def daemon(target: str, interval: int, mode: str, limit: int, auto_submit: bool):
+    """Runs IMM pipeline continuously in background daemon mode."""
+    console.print(f"[bold green]Starting IMM Daemon for target '{target}' every {interval} minutes...[/bold green]")
+    console.print("[dim]Press Ctrl+C to stop smoothly.[/dim]")
+
+    scheduler = DaemonScheduler(interval_minutes=interval)
+    scheduler.start(
+        target=target,
+        mode=mode,
+        limit=limit,
+        auto_submit=auto_submit
+    )
+
+
 if __name__ == "__main__":
     cli()
-    
+        
