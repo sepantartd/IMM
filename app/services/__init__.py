@@ -13,6 +13,7 @@ from app.services.rate_limiter import RateLimiterService
 from app.services.list_service import ListService
 from app.services.pipeline import AutomationPipeline
 from app.services.scheduler import DaemonScheduler
+from app.services.analytics import AnalyticsService
 
 __all__ = [
     "ReelDiscoveryService",
@@ -24,5 +25,6 @@ __all__ = [
     "RateLimiterService",
     "ListService",
     "AutomationPipeline",
-    "DaemonScheduler"
+    "DaemonScheduler",
+    "AnalyticsService"
 ]
