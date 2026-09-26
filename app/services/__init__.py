@@ -16,6 +16,7 @@ from app.services.scheduler import DaemonScheduler
 from app.services.analytics import AnalyticsService
 from app.services.health_check import HealthCheckService
 from app.services.backup_service import DatabaseBackupService
+from app.services.proxy_manager import ProxyManagerService
 
 __all__ = [
     "ReelDiscoveryService",
@@ -30,5 +31,6 @@ __all__ = [
     "DaemonScheduler",
     "AnalyticsService",
     "HealthCheckService",
-    "DatabaseBackupService"
+    "DatabaseBackupService",
+    "ProxyManagerService"
 ]
