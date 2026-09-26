@@ -15,6 +15,7 @@ from app.services.pipeline import AutomationPipeline
 from app.services.scheduler import DaemonScheduler
 from app.services.analytics import AnalyticsService
 from app.services.health_check import HealthCheckService
+from app.services.backup_service import DatabaseBackupService
 
 __all__ = [
     "ReelDiscoveryService",
@@ -28,5 +29,6 @@ __all__ = [
     "AutomationPipeline",
     "DaemonScheduler",
     "AnalyticsService",
-    "HealthCheckService"
+    "HealthCheckService",
+    "DatabaseBackupService"
 ]
