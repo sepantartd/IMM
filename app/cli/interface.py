@@ -1,7 +1,8 @@
 """
 CLI Interface module for IMM.
 Provides comprehensive terminal commands for discovering reels, managing approval queues,
-submitting comments, managing blacklists/whitelists, running daemon, viewing analytics, and running diagnostics.
+submitting comments, managing blacklists/whitelists, running daemon, viewing analytics, 
+health check, and database backups.
 """
 
 import click
@@ -15,6 +16,7 @@ from app.services.approval import ApprovalService
 from app.services.scheduler import DaemonScheduler
 from app.services.analytics import AnalyticsService
 from app.services.health_check import HealthCheckService
+from app.services.backup_service import DatabaseBackupService
 from app.utils.logger import logger
 
 console = Console()
@@ -266,6 +268,27 @@ def health():
     console.print(table)
 
 
+@cli.command()
+@click.option("--purge-days", default=30, type=int, help="Purge activity logs older than N days")
+@click.option("--no-backup", is_flag=True, help="Skip creating database backup before maintenance")
+def backup(purge_days: int, no_backup: bool):
+    """Performs database maintenance, purges old logs, and creates timestamped backups."""
+    console.print("[bold yellow]Running database maintenance and backup routine...[/bold yellow]")
+    svc = DatabaseBackupService()
+
+    maint_results = svc.run_full_maintenance(backup_first=not no_backup, purge_days=purge_days)
+
+    table = Table(title="Database Maintenance Summary")
+    table.add_column("Operation", style="cyan")
+    table.add_column("Result", style="green")
+
+    backup_status = maint_results["backup_path"] or "[dim]Skipped[/dim]"
+    table.add_row("Backup Created At", str(backup_status))
+    table.add_row("Purged Logs Count", str(maint_results["purging_logs"] if "purging_logs" in maint_results else maint_results.get("purged_logs", 0)))
+    table.add_row("Vacuum Optimization", "[green]Success[/green]" if maint_results["vacuum_success"] else "[red]Failed[/red]")
+
+    console.print(table)
+
+
 if __name__ == "__main__":
     cli()
-              
