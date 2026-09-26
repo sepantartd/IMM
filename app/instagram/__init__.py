@@ -1,9 +1,15 @@
-"""
-Instagram package initialization for IMM.
-Exposes Instagram client and session management entities.
-"""
-
-from app.instagram.session import SessionManager
 from app.instagram.client import InstagramClient
+from app.instagram.errors import (
+    InstagramError,
+    RateLimitException,
+    AuthException,
+    NetworkException,
+)
 
-__all__ = ["SessionManager", "InstagramClient"]
+__all__ = [
+    "InstagramClient",
+    "InstagramError",
+    "RateLimitException",
+    "AuthException",
+    "NetworkException",
+]
