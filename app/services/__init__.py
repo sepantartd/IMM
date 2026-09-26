@@ -11,6 +11,7 @@ from app.services.approval import ApprovalService
 from app.services.submission_service import SubmissionService
 from app.services.rate_limiter import RateLimiterService
 from app.services.list_service import ListService
+from app.services.pipeline import AutomationPipeline
 
 __all__ = [
     "ReelDiscoveryService",
@@ -20,5 +21,6 @@ __all__ = [
     "ApprovalService",
     "SubmissionService",
     "RateLimiterService",
-    "ListService"
+    "ListService",
+    "AutomationPipeline"
 ]
