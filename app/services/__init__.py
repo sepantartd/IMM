@@ -9,6 +9,7 @@ from app.services.deduplication import DeduplicationService
 from app.services.comment_generator import CommentGeneratorService
 from app.services.approval import ApprovalService
 from app.services.submission_service import SubmissionService
+from app.services.rate_limiter import RateLimiterService
 
 __all__ = [
     "ReelDiscoveryService",
@@ -16,5 +17,6 @@ __all__ = [
     "DeduplicationService",
     "CommentGeneratorService",
     "ApprovalService",
-    "SubmissionService"
+    "SubmissionService",
+    "RateLimiterService"
 ]
