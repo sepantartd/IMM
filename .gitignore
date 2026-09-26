@@ -1,13 +1,20 @@
 # Environment variables
 .env
-venv/
+
+# Session and Database files
+data/*.json
+data/*.db
+data/session*
+*.session
+
+# Logs
+logs/
+*.log
+
+# Python cache & virtual environment
 __pycache__/
 *.pyc
-
-# Local databases and logs
-data/*.db
-logs/*.log
-
-# IDE files
-.vscode/
-.idea/
+*.pyo
+venv/
+.venv/
+.pytest_cache/
