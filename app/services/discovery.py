@@ -1,90 +1,100 @@
-"""
-Reel discovery service module for IMM.
-Handles discovering reels from target usernames or search sources.
-"""
-
-from typing import List, Optional
-from app.config import config
+import logging
+from typing import List, Dict, Any
 from app.instagram.client import InstagramClient
-from app.models.reel import Reel
-from app.utils.logger import logger
+from app.instagram.errors import RateLimitException, UserNotFoundException, AuthException, InstagramError
+from app.database import Database
+
+logger = logging.getLogger(__name__)
 
 
-class ReelDiscoveryService:
-    """Service for discovering and extracting reel metadata from target sources."""
+class DiscoveryEngine:
+    """Engine responsible for discovering reels while respecting strict rate limits and deduplication."""
 
-    def __init__(self, client: Optional[InstagramClient] = None):
-        self.client = client or InstagramClient()
+    def __init__(self, client: InstagramClient, db: Database):
+        self.client = client
+        self.db = db
 
-    def discover_by_username(self, username: str, limit: int = 10) -> List[Reel]:
+    def discover_user_reels(self, username: str, limit: int = 10) -> Dict[str, Any]:
         """
-        Discovers reels published by a specific username.
-        Returns a list of Reel objects.
+        Discovers reels for a target username.
+        Checks DB cooldown prior to execution and updates DB if 429 is encountered.
         """
-        logger.info(f"Discovering reels for target username: @{username} (Limit: {limit})")
-        reels: List[Reel] = []
+        clean_username = username.lstrip("@").strip()
+        result = {
+            "username": clean_username,
+            "discovered_count": 0,
+            "new_count": 0,
+            "rate_limited": False,
+            "reels": [],
+        }
 
-        if config.DRY_RUN or not self.client.session_manager.is_session_available():
-            logger.info(f"DRY_RUN or unauthenticated mode: generating simulated reels for @{username}.")
-            for i in range(1, min(limit, 5) + 1):
-                mock_shortcode = f"mock_{username}_{i}"
-                reel = Reel(
-                    reel_id=f"9900{i}{abs(hash(username)) % 10000}",
-                    shortcode=mock_shortcode,
-                    author_username=username,
-                    url=f"https://www.instagram.com/reel/{mock_shortcode}/",
-                    caption=f"Sample reel content #{i} from @{username} #python #automation"
-                )
-                reels.append(reel)
-            return reels
-
-        try:
-            url = f"https://www.instagram.com/api/v1/feed/user/{username}/username/"
-            response = self.client.client.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("items", [])
-                for item in items[:limit]:
-                    if item.get("media_type") == 2 or item.get("product_type") == "clips":
-                        pk = str(item.get("pk", ""))
-                        code = item.get("code", "")
-                        caption_text = ""
-                        if item.get("caption") and isinstance(item["caption"], dict):
-                            caption_text = item["caption"].get("text", "")
-
-                        reel = Reel(
-                            reel_id=pk,
-                            shortcode=code,
-                            author_username=username,
-                            url=f"https://www.instagram.com/reel/{code}/",
-                            caption=caption_text
-                        )
-                        reels.append(reel)
-            else:
-                logger.warning(f"Failed to fetch feed for @{username}, HTTP status: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error discovering reels for username @{username}: {e}")
-
-        return reels
-
-    def discover_by_keyword(self, keyword: str, limit: int = 10) -> List[Reel]:
-        """
-        Discovers reels matching a target keyword or topic.
-        In DRY_RUN or simulated mode, returns mock structured items.
-        """
-        logger.info(f"Discovering reels for keyword: '{keyword}' (Limit: {limit})")
-        reels: List[Reel] = []
-
-        for i in range(1, min(limit, 3) + 1):
-            mock_shortcode = f"kw_{keyword}_{i}"
-            reel = Reel(
-                reel_id=f"8800{i}{abs(hash(keyword)) % 10000}",
-                shortcode=mock_shortcode,
-                author_username=f"creator_{i}",
-                url=f"https://www.instagram.com/reel/{mock_shortcode}/",
-                caption=f"Exploring {keyword} in this amazing reel! #{keyword}"
+        # 1. Check existing Cooldown status in Database
+        if self.db.is_rate_limited("user_lookup") or self.db.is_rate_limited("reels_discovery"):
+            logger.warning(
+                f"[RATE-LIMIT] Discovery skipped for @{clean_username}: Rate limit cooldown is currently ACTIVE in DB."
             )
-            reels.append(reel)
+            result["rate_limited"] = True
+            return result
 
-        return reels
+        # 2. Lookup Target User ID
+        try:
+            logger.info(f"Discovering reels for target username: @{clean_username} (Limit: {limit})")
+            user_id = self.client.get_user_id(clean_username)
+        except RateLimitException as e:
+            logger.error(f"[RATE-LIMIT] 429 hit during user lookup for @{clean_username}. Recording cooldown.")
+            self.db.set_rate_limit(
+                endpoint="user_lookup",
+                retry_after_seconds=e.retry_after,
+                error_type="RateLimitException",
+                error_message=str(e),
+            )
+            result["rate_limited"] = True
+            return result
+        except UserNotFoundException:
+            logger.warning(f"Target user @{clean_username} was not found on Instagram.")
+            return result
+        except (AuthException, InstagramError) as e:
+            logger.error(f"Failed to resolve user ID for @{clean_username}: {e}")
+            return result
+
+        # 3. Retrieve User Reels
+        try:
+            reels = self.client.get_user_reels(user_id=user_id, limit=limit)
+        except RateLimitException as e:
+            logger.error(f"[RATE-LIMIT] 429 hit during reels retrieval for @{clean_username}. Recording cooldown.")
+            self.db.set_rate_limit(
+                endpoint="reels_discovery",
+                retry_after_seconds=e.retry_after,
+                error_type="RateLimitException",
+                error_message=str(e),
+            )
+            result["rate_limited"] = True
+            return result
+        except (AuthException, InstagramError) as e:
+            logger.error(f"Failed to fetch reels for user_id {user_id}: {e}")
+            return result
+
+        result["discovered_count"] = len(reels)
+
+        # 4. Save and Deduplicate Reels in Database
+        new_reels = []
+        for reel in reels:
+            inserted = self.db.insert_reel(
+                media_id=reel["id"],
+                shortcode=reel["code"],
+                user_id=reel["user_id"],
+                username=reel["username"],
+                caption=reel["caption"],
+            )
+            if inserted:
+                new_reels.append(reel)
+
+        result["new_count"] = len(new_reels)
+        result["reels"] = new_reels
+
+        logger.info(
+            f"Discovery run finished for @{clean_username}. "
+            f"Discovered: {result['discovered_count']}, Unique New: {result['new_count']}"
+        )
+        return result
         
