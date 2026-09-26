@@ -1,13 +1,3 @@
-<div align="center">
-
-```ascii
-  _____ __  __ __M 
- |_   _|  \/  |  \/  |   Instagram Modular Manager
-   | | | |\/| | |\/| |   Safety-First Automation Engine for Android & Linux
-  _| |_| |  | | |  | |   
- |_____|_|  |_|_|  |_|   v1.0.0 Stable
-```
-
 # 🚀 IMM — Instagram Modular Manager
 
 **موتور اتوماسیون ماژولار، ایمن و پیشرفته برای اینستاگرام با تمرکز بر حفظ امنیت اکانت، صف تأیید دستی و اجرای بهینه روی Termux و Linux**
