@@ -1,7 +1,7 @@
 """
 CLI Interface module for IMM.
 Provides comprehensive terminal commands for discovering reels, managing approval queues,
-submitting comments, managing blacklists/whitelists, and running the background daemon.
+submitting comments, managing blacklists/whitelists, running daemon, and viewing analytics.
 """
 
 import click
@@ -13,6 +13,7 @@ from app.services.pipeline import AutomationPipeline
 from app.services.list_service import ListService
 from app.services.approval import ApprovalService
 from app.services.scheduler import DaemonScheduler
+from app.services.analytics import AnalyticsService
 from app.utils.logger import logger
 
 console = Console()
@@ -208,6 +209,36 @@ def daemon(target: str, interval: int, mode: str, limit: int, auto_submit: bool)
     )
 
 
+@cli.command()
+@click.option("--export", "-e", help="Export analytics summary to JSON file path")
+def report(export: str):
+    """Displays system activity analytics and performance metrics."""
+    analytics_svc = AnalyticsService()
+    stats = analytics_svc.get_summary_stats()
+
+    table = Table(title="IMM Activity Analytics")
+    table.add_column("Metric", style="cyan", no_wrap=True)
+    table.add_column("Value", style="magenta")
+
+    table.add_row("Total Discovered Reels", str(stats["total_reels"]))
+    table.add_row("Total Comments Created", str(stats["total_comments"]))
+    table.add_row("Pending Approval", str(stats["pending_comments"]))
+    table.add_row("Approved (Ready)", str(stats["approved_comments"]))
+    table.add_row("Successfully Submitted", str(stats["submitted_comments"]))
+    table.add_row("Rejected", str(stats["rejected_comments"]))
+    table.add_row("Failed", str(stats["failed_comments"]))
+    table.add_row("Success Rate (%)", f"{stats['success_rate_pct']}%")
+
+    console.print(table)
+
+    if export:
+        success = analytics_svc.export_report_json(export)
+        if success:
+            console.print(f"[bold green]✓ Report exported successfully to {export}[/bold green]")
+        else:
+            console.print("[bold red]✗ Failed to export report.[/bold red]")
+
+
 if __name__ == "__main__":
     cli()
-        
+    
