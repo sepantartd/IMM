@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class DiscoveryEngine:
-    """Engine responsible for discovering reels while respecting strict rate limits and deduplication."""
+    """Service responsible for discovering reels while respecting strict rate limits and deduplication."""
 
     def __init__(self, client: InstagramClient, db: Database):
         self.client = client
@@ -97,4 +97,4 @@ class DiscoveryEngine:
             f"Discovered: {result['discovered_count']}, Unique New: {result['new_count']}"
         )
         return result
-        
+                
