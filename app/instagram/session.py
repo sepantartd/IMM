@@ -1,72 +1,56 @@
-"""
-Instagram session management module for IMM.
-Handles saving, loading, validating, and clearing user session data securely.
-"""
-
-import os
 import json
-from typing import Optional, Dict, Any
-from app.utils.logger import logger
+import logging
+from pathlib import Path
+from typing import Optional
+from instagrapi import Client
+from instagrapi.exceptions import LoginRequired, PleaseWait429, RateLimitError
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-SESSION_FILE_PATH = os.path.join(DATA_DIR, "session.json")
+from app.instagram.errors import AuthException, RateLimitException
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
-    """Manages persistence and lifecycle of Instagram authentication sessions."""
+    """Manages Instagrapi session persistence using JSON settings."""
 
-    def __init__(self, session_path: str = SESSION_FILE_PATH):
-        self.session_path = session_path
+    def __init__(self, session_file_path: str = "data/session.json"):
+        self.session_file = Path(session_file_path)
+        self.session_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def save_session(self, session_data: Dict[str, Any]) -> bool:
+    def load_session(self, client: Client, fallback_session_id: Optional[str] = None) -> bool:
         """
-        Saves session data (cookies, headers, tokens) to local session file.
-        Returns True if successful, False otherwise.
+        Loads session into instagrapi Client.
+        Prioritizes session.json file, falls back to raw sessionid string if provided.
         """
-        try:
-            os.makedirs(os.path.dirname(self.session_path), exist_ok=True)
-            with open(self.session_path, "w", encoding="utf-8") as f:
-                json.dump(session_data, f, indent=2, ensure_ascii=False)
-            logger.info("Session data saved successfully.")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save session data: {e}")
-            return False
-
-    def load_session(self) -> Optional[Dict[str, Any]]:
-        """
-        Loads session data from local session file if available.
-        Returns session dictionary or None.
-        """
-        if not os.path.exists(self.session_path):
-            logger.debug("No existing session file found.")
-            return None
-
-        try:
-            with open(self.session_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            logger.info("Session data loaded successfully.")
-            return data
-        except Exception as e:
-            logger.error(f"Failed to load session file: {e}")
-            return None
-
-    def clear_session(self) -> bool:
-        """Removes local session file."""
-        if os.path.exists(self.session_path):
+        if self.session_file.exists():
             try:
-                os.remove(self.session_path)
-                logger.info("Session cleared successfully.")
+                logger.info(f"Loading session settings from {self.session_file}")
+                client.load_settings(self.session_file)
                 return True
             except Exception as e:
-                logger.error(f"Failed to delete session file: {e}")
-                return False
-        return True
+                logger.warning(f"Failed to load session settings file: {e}")
 
-    def is_session_available(self) -> bool:
-        """Checks whether a valid non-empty session file exists."""
-        data = self.load_session()
-        if data and isinstance(data, dict) and len(data) > 0:
-            return True
+        if fallback_session_id and fallback_session_id.strip():
+            logger.info("Initializing session from INSTAGRAM_SESSION_ID environment variable.")
+            try:
+                client.set_settings({})
+                client.login_by_sessionid(fallback_session_id.strip())
+                self.save_session(client)
+                return True
+            except (PleaseWait429, RateLimitError) as e:
+                raise RateLimitException("Rate limit encountered during session creation.") from e
+            except Exception as e:
+                raise AuthException(f"Failed to authenticate using sessionid: {e}") from e
+
+        logger.warning("No valid session settings or session ID available.")
         return False
-      
+
+    def save_session(self, client: Client) -> None:
+        """Saves current instagrapi client settings to JSON file."""
+        try:
+            self.session_file.parent.mkdir(parents=True, exist_ok=True)
+            client.dump_settings(self.session_file)
+            logger.info(f"Session settings successfully saved to {self.session_file}")
+        except Exception as e:
+            logger.error(f"Failed to save session settings: {e}")
+            
